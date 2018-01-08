@@ -10,6 +10,7 @@ var config = null;
 var first_load = true;
 var use_delegators = false;
 var last_voted = 0;
+var skip = false;
 var version = '1.0.0';
 
 steem.api.setOptions({ url: 'https://api.steemit.com' });
@@ -45,11 +46,11 @@ if (fs.existsSync('state.json')) {
   if (state.last_voted)
     last_voted = state.last_voted;
 
-  utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans }));
+  utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans, members: members.length }));
 }
 
 // Schedule to run every 10 seconds
-setInterval(startProcess, 5000);
+setInterval(startProcess, 10000);
 
 function startProcess() {
   // Load the settings from the config file each time so we can pick up any changes
@@ -67,7 +68,7 @@ function startProcess() {
     }
   });
 
-  if (account) {
+  if (account && !skip) {
     // Load the current voting power of the account
     var vp = utils.getVotingPower(account);
 
@@ -75,15 +76,17 @@ function startProcess() {
       utils.log('Voting Power: ' + utils.format(vp / 100) + '% | Time until next vote: ' + utils.toTimer(utils.timeTilFullPower(vp)));
 
     // We are at 100% voting power - time to vote!
-    if (vp >= 10000) {
-      // TODO: Send the next vote here
+    if (vp >= 9500) {
+      skip = true;
+      voteNext();
     }
 
     getTransactions();
 
     // Save the state of the bot to disk.
     saveState();
-  }
+  } else if(skip)
+    skip = false;
 }
 
 function voteNext() {
@@ -94,7 +97,23 @@ function voteNext() {
 
   steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 1, function (err, result) {
     if (result && !err) {
-      sendVote(result[0], 0);
+      var post = result[0];
+
+      // Make sure the post is less than 6.5 days old
+      if((new Date() - new Date(post.created + 'Z')) >= (6.5 * 24 * 60 * 60 * 1000)) {
+        utils.log('This post is too old for a vote: ' + post.url);
+        last_voted++;
+        return;
+      }
+
+      // Check if the bot already voted on this post
+      if(post.active_votes.find(v => v.voter == account.name)) {
+        utils.log('Bot already voted on: ' + post.url);
+        last_voted++;
+        return;
+      }
+
+      sendVote(post, 0);
     } else
       console.log(err, result);
   });
@@ -106,6 +125,7 @@ function sendVote(post, retries) {
   steem.broadcast.vote(config.posting_key, account.name, post.author, post.permlink, config.vote_weight, function (err, result) {
     if (!err && result) {
       utils.log(utils.format(config.vote_weight / 100) + '% vote cast for: ' + post.url);
+      last_voted++;
     } else {
       utils.log(err, result);
 
