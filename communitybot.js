@@ -9,6 +9,7 @@ var members = [];
 var config = null;
 var first_load = true;
 var use_delegators = false;
+var last_voted = 0;
 var version = '1.0.0';
 
 steem.api.setOptions({ url: 'https://api.steemit.com' });
@@ -40,6 +41,9 @@ if (fs.existsSync('state.json')) {
 
   if (state.members)
     members = state.members;
+
+  if (state.last_voted)
+    last_voted = state.last_voted;
 
   utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans }));
 }
@@ -80,6 +84,39 @@ function startProcess() {
     // Save the state of the bot to disk.
     saveState();
   }
+}
+
+function voteNext() {
+  if (last_voted >= members.length)
+    last_voted = 0;
+
+  var member = members[last_voted];
+
+  steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 1, function (err, result) {
+    if (result && !err) {
+      sendVote(result[0], 0);
+    } else
+      console.log(err, result);
+  });
+}
+
+function sendVote(post, retries) {
+  utils.log('Voting on: ' + post.url);
+
+  steem.broadcast.vote(config.posting_key, account.name, post.author, post.permlink, config.vote_weight, function (err, result) {
+    if (!err && result) {
+      utils.log(utils.format(config.vote_weight / 100) + '% vote cast for: ' + post.url);
+    } else {
+      utils.log(err, result);
+
+      // Try again one time on error
+      if (retries < 1)
+        sendVote(post, retries + 1);
+      else {
+        utils.log('============= Vote transaction failed two times for: ' + post.url + ' ===============');
+      }
+    }
+  });
 }
 
 function getTransactions() {
@@ -150,13 +187,13 @@ function updateMember(name, payment) {
   }
 
   // Check if the account has delegated to the community bot.
-  var is_delegator = (delegators.find(d => d.delegator == name && parseFloat(d.vesting_shares) >= config.membership.delegation_vests) != null);
+  member.is_delegator = (delegators.find(d => d.delegator == name && parseFloat(d.vesting_shares) >= config.membership.delegation_vests) != null);
 
   // Get the date that the membership is currently valid through.
-  var valid_thru = new Date(Math.max(new Date(member.valid_thru), new Date(config.membership.start_date)));
+  var valid_thru = new Date(Math.max(new Date(member.valid_thru), new Date(config.membership.start_date), new Date()));
 
   // Get the dues amount based on whether or not they are a delegator
-  var dues = (config.membership.dues_steem_no_delegation == 0 || is_delegator) ? config.membership.dues_steem : config.membership.dues_steem_no_delegation;
+  var dues = (config.membership.dues_steem_no_delegation == 0 || member.is_delegator) ? config.membership.dues_steem : config.membership.dues_steem_no_delegation;
 
   // Calculate how much longer they have paid for.
   var extension = payment / dues * config.membership.membership_period_days * 24 * 60 * 60 * 1000;
@@ -172,6 +209,7 @@ function updateMember(name, payment) {
 function saveState() {
   var state = {
     last_trans: last_trans,
+    last_voted: last_voted,
     members: members
   };
 
