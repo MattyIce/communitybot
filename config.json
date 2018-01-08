@@ -1,0 +1,22 @@
+{
+  "disabled_mode": false,
+  "detailed_logging": false,
+  "account": "themothership",
+  "memo_key": "your_private_memo_key",
+  "posting_key": "your_private_posting_key",
+  "active_key": "your_private_active_key",
+  "auto_claim_rewards" : false,
+  "post_rewards_withdrawal_account": null,
+  "blacklist": ["account1", "account2"],
+  "promotion_content": "You got a {weight}% upvote from @{botname} courtesy of @{sender}!",
+  "auto_withdrawal": {
+    "active": false
+  },
+  "membership": {
+    "start_date": "1/7/2018",
+    "membership_period_days": 30,
+    "delegation_vests": 60000,
+    "dues_steem": 1,
+    "dues_steem_no_delegation": 2
+  }
+}
