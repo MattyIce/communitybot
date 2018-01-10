@@ -20,6 +20,21 @@ utils.log("* START - Version: " + version + " *");
 // Load the settings from the config file
 config = JSON.parse(fs.readFileSync("config.json"));
 
+// If the API is enabled, start the web server
+if(config.api && config.api.enabled) {
+  var express = require('express');
+  var app = express();
+
+  app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+  });
+
+  app.get('/api/members', (req, res) => res.json({ members: members }));
+  app.listen(config.api.port, () => utils.log('API running on port ' + config.api.port))
+}
+
 // Check whether delegation is necessary for membership.
 use_delegators = config.membership && config.membership.delegation_vests > 0;
 
@@ -76,7 +91,7 @@ function startProcess() {
       utils.log('Voting Power: ' + utils.format(vp / 100) + '% | Time until next vote: ' + utils.toTimer(utils.timeTilFullPower(vp)));
 
     // We are at 100% voting power - time to vote!
-    if (vp >= 9500) {
+    if (vp >= 10000) {
       skip = true;
       voteNext();
     }
@@ -142,14 +157,8 @@ function sendVote(post, retries) {
 function getTransactions() {
   var num_trans = 50;
 
-  // If this is the first time the bot is ever being run, start with just the most recent transaction
-  if (first_load && last_trans == 0) {
-    utils.log('First run - starting with last transaction on account.');
-    num_trans = 1;
-  }
-
   // If this is the first time the bot is run after a restart get a larger list of transactions to make sure none are missed
-  if (first_load && last_trans > 0) {
+  if (first_load) {
     utils.log('First run - loading all transactions since bot was stopped.');
     num_trans = 1000;
   }
