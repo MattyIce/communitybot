@@ -4,11 +4,9 @@ var utils = require('./utils');
 
 var account = null;
 var last_trans = 0;
-var delegators = [];
 var members = [];
 var config = null;
 var first_load = true;
-var use_delegators = false;
 var last_voted = 0;
 var skip = false;
 var version = '1.0.0';
@@ -35,19 +33,6 @@ if(config.api && config.api.enabled) {
   app.listen(config.api.port, () => utils.log('API running on port ' + config.api.port))
 }
 
-// Check whether delegation is necessary for membership.
-use_delegators = config.membership && config.membership.delegation_vests > 0;
-
-// If so then we need to load the list of delegators to the account
-if (use_delegators) {
-  var del = require('./delegators');
-  del.loadDelegations(config.account, function (d) {
-    delegators = d;
-    var vests = delegators.reduce(function (total, v) { return total + parseFloat(v.vesting_shares); }, 0);
-    utils.log('Delegators Loaded - ' + delegators.length + ' delegators and ' + vests + ' VESTS in total!');
-  });
-}
-
 // Check if bot state has been saved to disk, in which case load it
 if (fs.existsSync('state.json')) {
   var state = JSON.parse(fs.readFileSync("state.json"));
@@ -62,6 +47,12 @@ if (fs.existsSync('state.json')) {
     last_voted = state.last_voted;
 
   utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans, members: members.length }));
+}
+
+// Check if members list has been saved to disk, in which case load it
+if (fs.existsSync('members.json')) {
+  var members_file = JSON.parse(fs.readFileSync("members.json"));
+  members = members_file.members;
 }
 
 // Schedule to run every 10 seconds
@@ -79,7 +70,7 @@ function startProcess() {
       account = result[0];
 
       // Check if there are any rewards to claim.
-      claimRewards();
+      //claimRewards();
     }
   });
 
@@ -91,7 +82,7 @@ function startProcess() {
       utils.log('Voting Power: ' + utils.format(vp / 100) + '% | Time until next vote: ' + utils.toTimer(utils.timeTilFullPower(vp)));
 
     // We are at 100% voting power - time to vote!
-    if (vp >= 10000) {
+    if (vp >= 11000) {
       skip = true;
       voteNext();
     }
@@ -104,11 +95,23 @@ function startProcess() {
     skip = false;
 }
 
-function voteNext() {
+function getNextActiveMember() {
   if (last_voted >= members.length)
     last_voted = 0;
 
   var member = members[last_voted];
+
+  // Check if this member's membership is active
+  if(member.full_delegation || member.valid_thru > new Date())
+    return member;
+  else {
+    last_voted++;
+    return getNextActiveMember();
+  }
+}
+
+function voteNext() {
+  var member = getNextActiveMember();
 
   steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 1, function (err, result) {
     if (result && !err) {
@@ -163,6 +166,12 @@ function getTransactions() {
     num_trans = 1000;
   }
 
+  if(members.length == 0)
+  {
+    utils.log('First run - loading all transactions since account was created.');
+    num_trans = 10000;
+  }
+
   steem.api.getAccountHistory(account.name, -1, num_trans, function (err, result) {
     first_load = false;
 
@@ -183,17 +192,15 @@ function getTransactions() {
           var currency = utils.getCurrency(op[1].amount);
           utils.log("Incoming Payment! From: " + op[1].from + ", Amount: " + op[1].amount + ", memo: " + op[1].memo);
 
-          // Update membership info
-          updateMember(op[1].from, amount);
+          if(currency == 'STEEM' && amount >= config.membership.dues_steem) {
+            // Update member info
+            updateMember(op[1].from, amount, -1);
+          }
 
-        } else if (use_delegators && op[0] == 'delegate_vesting_shares' && op[1].delegatee == account.name) {
-          // If we are paying out to delegators, then update the list of delegators when new delegation transactions come in
-          var delegator = delegators.find(d => d.delegator == op[1].delegator);
+        } else if (op[0] == 'delegate_vesting_shares' && op[1].delegatee == account.name) {
 
-          if (delegator)
-            delegator.vesting_shares = op[1].vesting_shares;
-          else
-            delegators.push({ delegator: op[1].delegator, vesting_shares: op[1].vesting_shares });
+          // Update member info
+          updateMember(op[1].delegator, 0, parseFloat(op[1].vesting_shares))
 
           utils.log('*** Delegation Update - ' + op[1].delegator + ' has delegated ' + op[1].vesting_shares);
         }
@@ -205,45 +212,62 @@ function getTransactions() {
   });
 }
 
-function updateMember(name, payment) {
+function updateMember(name, payment, vesting_shares) {
   var member = members.find(m => m.name == name);
 
   // Add a new member if none is found
   if (!member) {
-    member = { name: name, valid_thru: null };
+    member = { name: name, valid_thru: null, vesting_shares: 0, total_dues: 0, joined: new Date() };
     members.push(member);
     utils.log('Added new member: ' + name);
   }
 
-  // Check if the account has delegated to the community bot.
-  member.is_delegator = (delegators.find(d => d.delegator == name && parseFloat(d.vesting_shares) >= config.membership.delegation_vests) != null);
+  member.total_dues += payment;
 
-  // Get the date that the membership is currently valid through.
-  var valid_thru = new Date(Math.max(new Date(member.valid_thru), new Date(config.membership.start_date), new Date()));
+  if(vesting_shares >= 0)
+    member.vesting_shares = vesting_shares;
 
-  // Get the dues amount based on whether or not they are a delegator
-  var dues = (config.membership.dues_steem_no_delegation == 0 || member.is_delegator) ? config.membership.dues_steem : config.membership.dues_steem_no_delegation;
+  // Has the member delegated the full amount to the bot?
+  member.full_delegation = member.vesting_shares >= config.membership.full_delegation_vests;
 
-  // Calculate how much longer they have paid for.
-  var extension = payment / dues * config.membership.membership_period_days * 24 * 60 * 60 * 1000;
+  if(!member.full_delegation) {
+    // Has the member delegated the minimum amount to the bot?
+    var delegation = member.vesting_shares >= config.membership.delegation_vests;
 
-  // Update their membership record.
-  member.valid_thru = new Date(valid_thru.valueOf() + extension).toISOString();
+    // Get the date that the membership is currently valid through.
+    var valid_thru = new Date(Math.max(new Date(member.valid_thru), new Date(config.membership.start_date), new Date()));
 
-  utils.log('Member ' + name + ' valid through: ' + member.valid_thru);
+    // Get the dues amount based on whether or not they are a delegator
+    var dues = (config.membership.dues_steem_no_delegation == 0 || delegation) ? config.membership.dues_steem : config.membership.dues_steem_no_delegation;
 
-  saveState();
+    // Calculate how much longer they have paid for.
+    var extension = payment / dues * config.membership.membership_period_days * 24 * 60 * 60 * 1000;
+
+    // Update their membership record.
+    member.valid_thru = new Date(valid_thru.valueOf() + extension).toISOString();
+
+    utils.log('Member ' + name + ' valid through: ' + member.valid_thru);
+  }
+
+  saveMembers();
 }
 
 function saveState() {
   var state = {
     last_trans: last_trans,
-    last_voted: last_voted,
-    members: members
+    last_voted: last_voted
   };
 
   // Save the state of the bot to disk
   fs.writeFile('state.json', JSON.stringify(state), function (err) {
+    if (err)
+      utils.log(err);
+  });
+}
+
+function saveMembers() {
+  // Save the members list to disk
+  fs.writeFile('members.json', JSON.stringify({ members: members }), function (err) {
     if (err)
       utils.log(err);
   });

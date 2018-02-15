@@ -1,4 +1,5 @@
 const steem = require('steem');
+steem.api.setOptions({ url: 'https://api.steemit.com' });
 
 var STEEMIT_100_PERCENT = 10000;
 var STEEMIT_VOTE_REGENERATION_SECONDS = (5 * 60 * 60 * 24);
