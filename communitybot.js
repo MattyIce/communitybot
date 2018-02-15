@@ -197,6 +197,12 @@ function getTransactions() {
             updateMember(op[1].from, amount, -1);
           }
 
+          // Check if a user is sponsoring another user with their delegation
+          if(op[1].memo.startsWith('$sponsor')) {
+            var user = op[1].memo.substr(op[1].indexOf('@') + 1);
+            sponsorMember(op[1].from, user);
+          }
+
         } else if (op[0] == 'delegate_vesting_shares' && op[1].delegatee == account.name) {
 
           // Update member info
@@ -217,7 +223,7 @@ function updateMember(name, payment, vesting_shares) {
 
   // Add a new member if none is found
   if (!member) {
-    member = { name: name, valid_thru: null, vesting_shares: 0, total_dues: 0, joined: new Date() };
+    member = { name: name, valid_thru: null, vesting_shares: 0, total_dues: 0, joined: new Date(), sponsoring: [], sponsor: null };
     members.push(member);
     utils.log('Added new member: ' + name);
   }
@@ -250,6 +256,25 @@ function updateMember(name, payment, vesting_shares) {
   }
 
   saveMembers();
+}
+
+function sponsorMember(sponsor, user) {
+  var member = members.find(m => m.name == sponsor);
+
+  if(member && member.vesting_shares >= config.membership.full_delegation_vests) {
+    // Subtract the sponsorship amount from the sponsor
+    updateMember(member.name, 0, member.vesting_shares - config.membership.full_delegation_vests);
+
+    member.sponsoring.push(user);
+
+    // Add it to the new member
+    updateMember(user, 0, config.membership.full_delegation_vests);
+
+    var new_member = members.find(m => m.name == user);
+
+    if(new_member)
+      new_member.sponsor = sponsor;
+  }
 }
 
 function saveState() {
