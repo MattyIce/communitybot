@@ -7,16 +7,16 @@
   "active_key": "your_private_active_key",
   "auto_claim_rewards" : true,
   "post_rewards_withdrawal_account": null,
-  "blacklist": ["account1", "account2"],
   "vote_weight": 10000,
-  "promotion_content": "You got a {weight}% upvote from @{botname} courtesy of @{sender}!",
-  "auto_withdrawal": {
-    "active": false
+  "api": {
+    "enabled": true,
+    "port": 3100
   },
   "membership": {
-    "start_date": "1/7/2018",
+    "start_date": "2/20/2018",
     "membership_period_days": 30,
     "delegation_vests": 60000,
+    "full_delegation_vests": 120000,
     "dues_steem": 1,
     "dues_steem_no_delegation": 2
   }

@@ -200,13 +200,13 @@ function getTransactions() {
           // Check if a user is sponsoring another user with their delegation
           if(op[1].memo.startsWith('$sponsor')) {
             var user = op[1].memo.substr(op[1].indexOf('@') + 1);
-            sponsorMember(op[1].from, user);
+            sponsorMember(op[1].from, user, amount);
           }
 
         } else if (op[0] == 'delegate_vesting_shares' && op[1].delegatee == account.name) {
 
           // Update member info
-          updateMember(op[1].delegator, 0, parseFloat(op[1].vesting_shares))
+          updateMember(op[1].delegator, 0, parseFloat(op[1].vesting_shares));
 
           utils.log('*** Delegation Update - ' + op[1].delegator + ' has delegated ' + op[1].vesting_shares);
         }
@@ -258,7 +258,7 @@ function updateMember(name, payment, vesting_shares) {
   saveMembers();
 }
 
-function sponsorMember(sponsor, user) {
+function sponsorMember(sponsor, user, amount) {
   var member = members.find(m => m.name == sponsor);
 
   if(member && member.vesting_shares >= config.membership.full_delegation_vests) {
