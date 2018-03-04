@@ -102,7 +102,7 @@ function getNextActiveMember() {
   var member = members[last_voted];
 
   // Check if this member's membership is active
-  if(member.full_delegation || member.valid_thru > new Date())
+  if(member.full_delegation || new Date(member.valid_thru) > new Date())
     return member;
   else {
     last_voted++;
