@@ -40,13 +40,10 @@ if (fs.existsSync('state.json')) {
   if (state.last_trans)
     last_trans = state.last_trans;
 
-  if (state.members)
-    members = state.members;
-
   if (state.last_voted)
     last_voted = state.last_voted;
 
-  utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans, members: members.length }));
+  utils.log('Restored saved bot state: ' + JSON.stringify({ last_trans: last_trans, last_voted: last_voted }));
 }
 
 // Check if members list has been saved to disk, in which case load it
@@ -55,8 +52,8 @@ if (fs.existsSync('members.json')) {
   members = members_file.members;
 }
 
-// Schedule to run every 10 seconds
-setInterval(startProcess, 10000);
+// Schedule to run every minute
+setInterval(startProcess, 60 * 1000);
 
 function startProcess() {
   // Load the settings from the config file each time so we can pick up any changes
@@ -82,7 +79,7 @@ function startProcess() {
       utils.log('Voting Power: ' + utils.format(vp / 100) + '% | Time until next vote: ' + utils.toTimer(utils.timeTilFullPower(vp)));
 
     // We are at 100% voting power - time to vote!
-    if (vp >= 11000) {
+    if (vp >= 10000) {
       skip = true;
       voteNext();
     }
@@ -105,7 +102,7 @@ function getNextActiveMember() {
     return null;
 
   // Check if this member's membership is active
-  if(member.full_delegation || member.valid_thru > new Date())
+  if(member.full_delegation || new Date(member.valid_thru) > new Date())
     return member;
   else {
     last_voted++;
