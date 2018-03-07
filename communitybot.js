@@ -101,6 +101,9 @@ function getNextActiveMember() {
 
   var member = members[last_voted];
 
+  if(member == null)
+    return null;
+
   // Check if this member's membership is active
   if(member.full_delegation || member.valid_thru > new Date())
     return member;
@@ -112,6 +115,9 @@ function getNextActiveMember() {
 
 function voteNext() {
   var member = getNextActiveMember();
+
+  if(member == null)
+    return;
 
   steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 1, function (err, result) {
     if (result && !err) {
