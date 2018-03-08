@@ -202,7 +202,7 @@ function getTransactions() {
 
           // Check if a user is sponsoring another user with their delegation
           if(op[1].memo.startsWith('$sponsor')) {
-            var user = op[1].memo.substr(op[1].indexOf('@') + 1);
+            var user = op[1].memo.substr(op[1].memo.indexOf('@') + 1);
             sponsorMember(op[1].from, user, amount);
           }
 
