@@ -42,7 +42,7 @@ Then set the following options in config.json:
 ```
 ## Run
 ```
-$ nodejs postpromoter.js
+$ nodejs communitybot.js
 ```
 
 This will run the process in the foreground which is not recommended. We recommend using a tool such as [PM2](http://pm2.keymetrics.io/) to run the process in the background as well as providing many other great features.
