@@ -120,6 +120,12 @@ function voteNext() {
     if (result && !err) {
       var post = result[0];
 
+      if (post == null || post == undefined) {
+        utils.log('No posts found for this account: ' + member.name);
+        last_voted++;
+        return;
+      }
+
       // Make sure the post is less than 6.5 days old
       if((new Date() - new Date(post.created + 'Z')) >= (6.5 * 24 * 60 * 60 * 1000)) {
         utils.log('This post is too old for a vote: ' + post.url);
