@@ -94,7 +94,13 @@ function startProcess() {
     skip = false;
 }
 
-function getNextActiveMember() {
+function getNextActiveMember(loop_count) {
+	if(!loop_count)
+		loop_count = 0;
+	
+	if(loop_count == members.length)
+		return null;
+	
   if (last_voted >= members.length)
     last_voted = 0;
 
@@ -102,13 +108,20 @@ function getNextActiveMember() {
 
   if(member == null)
     return null;
+	
+	// If whitelist_only is enabled, check if this member is still on the whitelist, otherwise skip to the next member
+	if(config.whitelist_only && whitelist.indexOf(member.name) < 0) {
+		last_voted++;
+		utils.log('Member @' + member.name + ' is no longer on the whitelist, skipping...');
+		return getNextActiveMember(loop_count + 1);
+	}
 
   // Check if this member's membership is active
-  if(member.full_delegation || new Date(member.valid_thru) > new Date())
+  if(member.full_delegation || new Date(member.valid_thru) > new Date()) {
     return member;
-  else {
+  } else {
     last_voted++;
-    return getNextActiveMember();
+    return getNextActiveMember(loop_count + 1);
   }
 }
 
