@@ -5,6 +5,7 @@ var utils = require('./utils');
 var account = null;
 var last_trans = 0;
 var members = [];
+var whitelist = [];
 var config = null;
 var first_load = true;
 var last_voted = 0;
@@ -16,7 +17,7 @@ steem.api.setOptions({ url: 'https://api.steemit.com' });
 utils.log("* START - Version: " + version + " *");
 
 // Load the settings from the config file
-config = JSON.parse(fs.readFileSync("config.json"));
+loadConfig();
 
 // If the API is enabled, start the web server
 if(config.api && config.api.enabled) {
@@ -50,14 +51,15 @@ if (fs.existsSync('state.json')) {
 if (fs.existsSync('members.json')) {
   var members_file = JSON.parse(fs.readFileSync("members.json"));
   members = members_file.members;
+	utils.log('Loaded ' + members.length + ' members.');
 }
 
 // Schedule to run every minute
-setInterval(startProcess, 60 * 1000);
+setInterval(startProcess, 10 * 1000);
 
 function startProcess() {
   // Load the settings from the config file each time so we can pick up any changes
-  config = JSON.parse(fs.readFileSync("config.json"));
+  loadConfig();
 
   // Load the bot account info
   steem.api.getAccounts([config.account], function (err, result) {
@@ -169,16 +171,16 @@ function sendVote(post, retries) {
 function getTransactions() {
   var num_trans = 50;
 
-  // If this is the first time the bot is run after a restart get a larger list of transactions to make sure none are missed
-  if (first_load) {
-    utils.log('First run - loading all transactions since bot was stopped.');
-    num_trans = 1000;
+  // If this is the first time the bot is ever being run, start with just the most recent transaction
+  if (first_load && last_trans == 0) {
+    utils.log('First run - starting with last transaction on account.');
+    num_trans = 1;
   }
 
-  if(members.length == 0)
-  {
-    utils.log('First run - loading all transactions since account was created.');
-    num_trans = 10000;
+  // If this is the first time the bot is run after a restart get a larger list of transactions to make sure none are missed
+  if (first_load && last_trans > 0) {
+    utils.log('First run - loading all transactions since bot was stopped.');
+    num_trans = 1000;
   }
 
   steem.api.getAccountHistory(account.name, -1, num_trans, function (err, result) {
@@ -228,6 +230,12 @@ function getTransactions() {
 }
 
 function updateMember(name, payment, vesting_shares) {
+	// If whitelist_only is enabled, check if the new member is on the whitelist
+	if(config.whitelist_only && whitelist.indexOf(name) < 0) {
+		sendPayment(name, (payment > 0) ? payment : 0.001, 'STEEM', 'whitelist_only');
+		return;
+	}
+	
   var member = members.find(m => m.name == name);
 
   // Add a new member if none is found
@@ -262,7 +270,9 @@ function updateMember(name, payment, vesting_shares) {
     member.valid_thru = new Date(valid_thru.valueOf() + extension).toISOString();
 
     utils.log('Member ' + name + ' valid through: ' + member.valid_thru);
-  }
+		sendPayment(name, 0.001, 'STEEM', 'member_valid_thru', 0, new Date(valid_thru.valueOf() + extension).toDateString());
+  } else
+		sendPayment(name, 0.001, 'STEEM', 'member_full_delegation', 0);
 
   saveMembers();
 }
@@ -299,11 +309,55 @@ function saveState() {
   });
 }
 
+function loadConfig() {
+	config = JSON.parse(fs.readFileSync("config.json"));
+	
+	// Load the whitelist from the specified location
+	utils.loadUserList(config.whitelist_location, function(list) {
+		if(list)
+			whitelist = list;
+	});
+}
+
 function saveMembers() {
   // Save the members list to disk
   fs.writeFile('members.json', JSON.stringify({ members: members }), function (err) {
     if (err)
       utils.log(err);
+  });
+}
+
+function sendPayment(to, amount, currency, reason, retries, data) {
+  if(!retries)
+    retries = 0;
+
+  // Make sure the recipient isn't on the no-refund list (for exchanges and things like that).
+  if (reason != 'forward_payment' && config.no_refund && config.no_refund.indexOf(to) >= 0) {
+    utils.log("Payment not sent to: @" + to + " for: " + reason + ' because they are on the no_refund list.');
+    return;
+  }
+
+  // Replace variables in the memo text
+  var memo = config.transfer_memos[reason];
+  memo = memo.replace(/{amount}/g, utils.format(amount, 3) + ' ' + currency);
+  memo = memo.replace(/{currency}/g, currency);
+  memo = memo.replace(/{account}/g, config.account);
+	memo = memo.replace(/{to}/g, to);
+  memo = memo.replace(/{tag}/g, data);
+
+  // Issue the payment.
+  steem.broadcast.transfer(config.active_key, config.account, to, utils.format(amount, 3) + ' ' + currency, memo, function (err, response) {
+    if (err) {
+      utils.log('Error sending payment to @' + to + ' for: ' + amount + ' ' + currency + ', Error: ' + err);
+
+      // Try again on error
+      if(retries < 2)
+        setTimeout(function() { refund(to, amount, currency, reason, retries + 1, data) }, (Math.floor(Math.random() * 10) + 3) * 1000);
+      else
+        utils.log('============= Payment failed three times for: @' + to + ' ===============');
+    } else {
+      utils.log('Payment of ' + amount + ' ' + currency + ' sent to @' + to + ' for reason: ' + reason);
+    }
   });
 }
 

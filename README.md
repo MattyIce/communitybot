@@ -26,6 +26,8 @@ Then set the following options in config.json:
   "auto_claim_rewards" : true,
   "post_rewards_withdrawal_account": null,
   "vote_weight": 10000,
+	"whitelist_only": true,
+	"whitelist_location": "whitelist.txt",
   "api": {
     "enabled": true,
     "port": 3100
@@ -37,7 +39,12 @@ Then set the following options in config.json:
     "full_delegation_vests": 120000,  // Min amount of delegation required for membership with no dues
     "dues_steem": 1,  // Dues required if delegation is less than "full_delegation_vests"
     "dues_steem_no_delegation": 2 // Dues required of delegation is less than "delegation_vests"
-  }
+  },
+	"transfer_memos": {
+		"whitelist_only": "This bot is for community members only. Please contact the community leaders to get added to the whitelist in order to join.",
+		"member_valid_thru": "Membership updated for @{to}. Membership valid through: {tag}.",
+		"member_full_delegation": "Membership updated for @{to}. Full amount delegated, membership is valid indefinitely while delegation remains."
+	}
 }
 ```
 ## Run

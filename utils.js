@@ -1,3 +1,4 @@
+var fs = require("fs");
 const steem = require('steem');
 steem.api.setOptions({ url: 'https://api.steemit.com' });
 
@@ -94,6 +95,36 @@ function timeTilFullPower(cur_power){
  function getCurrency(amount) {
    return amount.substr(amount.indexOf(' ') + 1);
  }
+ 
+ function loadUserList(location, callback) {
+  if(!location) {
+    if(callback)
+      callback(null);
+
+    return;
+  }
+
+  if (location.startsWith('http://') || location.startsWith('https://')) {
+    // Require the "request" library for making HTTP requests
+    var request = require("request");
+
+    request.get(location, function (e, r, data) {
+      try {
+        if(callback)
+          callback(data.replace(/[\r]/g, '').split('\n'));
+      } catch (err) {
+        utils.log('Error loading blacklist from: ' + location + ', Error: ' + err);
+
+        if(callback)
+          callback(null);
+      }
+    });
+  } else if (fs.existsSync(location)) {
+    if(callback)
+      callback(fs.readFileSync(location, "utf8").replace(/[\r]/g, '').split('\n'));
+  } else if(callback)
+    callback([]);
+}
 
 function format(n, c, d, t) {
   var c = isNaN(c = Math.abs(c)) ? 2 : c,
@@ -127,6 +158,7 @@ function format(n, c, d, t) {
    getVoteValue: getVoteValue,
    timeTilFullPower: timeTilFullPower,
    getVestingShares: getVestingShares,
+	 loadUserList: loadUserList,
    getCurrency: getCurrency,
    format: format,
    toTimer: toTimer,
