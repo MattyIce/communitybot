@@ -1,0 +1,1 @@
+This post has received a {weight}% upvote from @{botname}! 

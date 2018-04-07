@@ -28,6 +28,8 @@ Then set the following options in config.json:
   "vote_weight": 10000,
 	"whitelist_only": true,
 	"whitelist_location": "whitelist.txt",
+	"comment_location": "comment.md",
+	"resteem": true,
   "api": {
     "enabled": true,
     "port": 3100

@@ -10,7 +10,7 @@ var config = null;
 var first_load = true;
 var last_voted = 0;
 var skip = false;
-var version = '1.0.0';
+var version = '1.1.0';
 
 steem.api.setOptions({ url: 'https://api.steemit.com' });
 
@@ -55,7 +55,7 @@ if (fs.existsSync('members.json')) {
 }
 
 // Schedule to run every minute
-setInterval(startProcess, 10 * 1000);
+setInterval(startProcess, 60 * 1000);
 
 function startProcess() {
   // Load the settings from the config file each time so we can pick up any changes
@@ -155,6 +155,9 @@ function sendVote(post, retries) {
     if (!err && result) {
       utils.log(utils.format(config.vote_weight / 100) + '% vote cast for: ' + post.url);
       last_voted++;
+			
+			if(config.comment_location)
+				sendComment(post.author, post.permlink);
     } else {
       utils.log(err, result);
 
@@ -164,6 +167,51 @@ function sendVote(post, retries) {
       else {
         utils.log('============= Vote transaction failed two times for: ' + post.url + ' ===============');
       }
+    }
+  });
+}
+
+function sendComment(parentAuthor, parentPermlink) {
+  var content = null;
+
+  content = fs.readFileSync(config.comment_location, "utf8");
+
+  // If promotion content is specified in the config then use it to comment on the upvoted post
+  if (content && content != '') {
+
+    // Generate the comment permlink via steemit standard convention
+    var permlink = 're-' + parentAuthor.replace(/\./g, '') + '-' + parentPermlink + '-' + new Date().toISOString().replace(/-|:|\./g, '').toLowerCase();
+
+    // Replace variables in the promotion content
+    content = content.replace(/\{weight\}/g, utils.format(config.vote_weight / 100)).replace(/\{botname\}/g, config.account);
+
+    // Broadcast the comment
+    steem.broadcast.comment(config.posting_key, parentAuthor, parentPermlink, account.name, permlink, permlink, content, '{"app":"communitybot/' + version + '"}', function (err, result) {
+      if (!err && result) {
+        utils.log('Posted comment: ' + permlink);
+      } else {
+        logError('Error posting comment: ' + permlink);
+      }
+    });
+  }
+
+  // Check if the bot should resteem this post
+  if (config.resteem)
+    resteem(parentAuthor, parentPermlink);
+}
+
+function resteem(author, permlink) {
+  var json = JSON.stringify(['reblog', {
+    account: config.account,
+    author: author,
+    permlink: permlink
+  }]);
+
+  steem.broadcast.customJson(config.posting_key, [], [config.account], 'follow', json, (err, result) => {
+    if (!err && result) {
+      utils.log('Resteemed Post: @' + author + '/' + permlink);
+    } else {
+      utils.log('Error resteeming post: @' + author + '/' + permlink);
     }
   });
 }

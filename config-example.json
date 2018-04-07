@@ -10,6 +10,8 @@
   "vote_weight": 10000,
 	"whitelist_only": true,
 	"whitelist_location": "whitelist.txt",
+	"comment_location": "comment.md",
+	"resteem": true,
   "api": {
     "enabled": true,
     "port": 3100
@@ -23,6 +25,8 @@
     "dues_steem_no_delegation": 2
   },
 	"transfer_memos": {
-		"whitelist_only": "This bot is for community members only. Please contact the community leaders to get added to the whitelist in order to join."
+		"whitelist_only": "This bot is for community members only. Please contact the community leaders to get added to the whitelist in order to join.",
+		"member_valid_thru": "Membership updated for @{to}. Membership valid through: {tag}.",
+		"member_full_delegation": "Membership updated for @{to}. Full amount delegated, membership is valid indefinitely while delegation remains."
 	}
 }
