@@ -177,10 +177,11 @@ function voteNext() {
 					}
 				}
 
-				sendVote(post, 0);
-				last_voted++;
+				sendVote(post, 0);				
 				break;
 			}
+			
+			last_voted++;
     } else
       console.log(err, result);
   });
