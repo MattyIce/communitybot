@@ -97,10 +97,10 @@ function startProcess() {
 function getNextActiveMember(loop_count) {
 	if(!loop_count)
 		loop_count = 0;
-	
+
 	if(loop_count == members.length)
 		return null;
-	
+
   if (last_voted >= members.length)
     last_voted = 0;
 
@@ -108,7 +108,7 @@ function getNextActiveMember(loop_count) {
 
   if(member == null)
     return null;
-	
+
 	// If whitelist_only is enabled, check if this member is still on the whitelist, otherwise skip to the next member
 	if(config.whitelist_only && whitelist.indexOf(member.name) < 0) {
 		last_voted++;
@@ -138,7 +138,7 @@ function voteNext() {
 					last_voted++;
 					return;
 			}
-			
+
 			for(var i = 0; i < result.length; i++) {
 				var post = result[i];
 
@@ -153,7 +153,7 @@ function voteNext() {
 					utils.log('Bot already voted on: ' + post.url);
 					continue;
 				}
-				
+
 				// Check if any tags on this post are blacklisted in the settings
 				if ((config.blacklisted_tags && config.blacklisted_tags.length > 0) || (config.whitelisted_tags && config.whitelisted_tags.length > 0) && post.json_metadata && post.json_metadata != '') {
 					var tags = JSON.parse(post.json_metadata).tags;
@@ -162,25 +162,25 @@ function voteNext() {
 						utils.log('Post contains one or more blacklisted tags.');
 						continue;
 					}
-					
+
 					if((config.whitelisted_tags && config.whitelisted_tags.length > 0) && tags && tags.length > 0 && !tags.find(t => config.whitelisted_tags.indexOf(t) >= 0)) {
 						utils.log('Post does not contain a whitelisted tag.');
 						continue;
 					}
 				}
-				
+
 				// Check if this post has been flagged by any flag signal accounts
 				if(config.flag_signal_accounts) {
-					if(result.active_votes.find(function(v) { return v.percent < 0 && config.flag_signal_accounts.indexOf(v.voter) >= 0; })) {
+					if(post.active_votes.find(function(v) { return v.percent < 0 && config.flag_signal_accounts.indexOf(v.voter) >= 0; })) {
 						utils.log('Post was downvoted by a flag signal account.');
 						continue;
 					}
 				}
 
-				sendVote(post, 0);				
+				sendVote(post, 0);
 				break;
 			}
-			
+
 			last_voted++;
     } else
       console.log(err, result);
@@ -193,7 +193,7 @@ function sendVote(post, retries) {
   steem.broadcast.vote(config.posting_key, account.name, post.author, post.permlink, config.vote_weight, function (err, result) {
     if (!err && result) {
       utils.log(utils.format(config.vote_weight / 100) + '% vote cast for: ' + post.url);
-			
+
 			if(config.comment_location)
 				sendComment(post.author, post.permlink);
     } else {
@@ -321,7 +321,7 @@ function updateMember(name, payment, vesting_shares) {
 		sendPayment(name, (payment > 0) ? payment : 0.001, 'STEEM', 'whitelist_only');
 		return;
 	}
-	
+
   var member = members.find(m => m.name == name);
 
   // Add a new member if none is found
@@ -397,7 +397,7 @@ function saveState() {
 
 function loadConfig() {
 	config = JSON.parse(fs.readFileSync("config.json"));
-	
+
 	// Load the whitelist from the specified location
 	utils.loadUserList(config.whitelist_location, function(list) {
 		if(list)
