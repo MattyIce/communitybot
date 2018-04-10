@@ -32,6 +32,7 @@ Then set the following options in config.json:
 	"resteem": true,
 	"flag_signal_accounts": ["spaminator", "cheetah", "steemcleaners", "mack-bot"],
 	"blacklisted_tags": ["nsfw"],
+	"whitelisted_tags": ["your-community-tag"],
   "api": {
     "enabled": true,
     "port": 3100

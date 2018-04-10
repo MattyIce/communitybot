@@ -155,11 +155,16 @@ function voteNext() {
 				}
 				
 				// Check if any tags on this post are blacklisted in the settings
-				if (config.blacklisted_tags && config.blacklisted_tags.length > 0 && post.json_metadata && post.json_metadata != '') {
+				if ((config.blacklisted_tags && config.blacklisted_tags.length > 0) || (config.whitelisted_tags && config.whitelisted_tags.length > 0) && post.json_metadata && post.json_metadata != '') {
 					var tags = JSON.parse(post.json_metadata).tags;
 
-					if(tags && tags.length > 0 && tags.find(t => config.blacklisted_tags.indexOf(t) >= 0)) {
+					if((config.blacklisted_tags && config.blacklisted_tags.length > 0) && tags && tags.length > 0 && tags.find(t => config.blacklisted_tags.indexOf(t) >= 0)) {
 						utils.log('Post contains one or more blacklisted tags.');
+						continue;
+					}
+					
+					if((config.whitelisted_tags && config.whitelisted_tags.length > 0) && tags && tags.length > 0 && !tags.find(t => config.whitelisted_tags.indexOf(t) >= 0)) {
+						utils.log('Post does not contain a whitelisted tag.');
 						continue;
 					}
 				}
