@@ -30,6 +30,8 @@ Then set the following options in config.json:
 	"whitelist_location": "whitelist.txt",
 	"comment_location": "comment.md",
 	"resteem": true,
+	"flag_signal_accounts": ["spaminator", "cheetah", "steemcleaners", "mack-bot"],
+	"blacklisted_tags": ["nsfw"],
   "api": {
     "enabled": true,
     "port": 3100

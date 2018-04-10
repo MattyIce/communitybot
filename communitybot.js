@@ -131,31 +131,51 @@ function voteNext() {
   if(member == null)
     return;
 
-  steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 1, function (err, result) {
+  steem.api.getDiscussionsByAuthorBeforeDate(member.name, null, new Date().toISOString().split('.')[0], 10, function (err, result) {
     if (result && !err) {
-      var post = result[0];
+			if(result.length == 0 || !result[0]) {
+					utils.log('No posts found for this account: ' + member.name);
+					last_voted++;
+					return;
+			}
+			
+			for(var i = 0; i < result.length; i++) {
+				var post = result[i];
 
-      if (post == null || post == undefined) {
-        utils.log('No posts found for this account: ' + member.name);
-        last_voted++;
-        return;
-      }
+				// Make sure the post is less than 6.5 days old
+				if((new Date() - new Date(post.created + 'Z')) >= (6.5 * 24 * 60 * 60 * 1000)) {
+					utils.log('This post is too old for a vote: ' + post.url);
+					continue;
+				}
 
-      // Make sure the post is less than 6.5 days old
-      if((new Date() - new Date(post.created + 'Z')) >= (6.5 * 24 * 60 * 60 * 1000)) {
-        utils.log('This post is too old for a vote: ' + post.url);
-        last_voted++;
-        return;
-      }
+				// Check if the bot already voted on this post
+				if(post.active_votes.find(v => v.voter == account.name)) {
+					utils.log('Bot already voted on: ' + post.url);
+					continue;
+				}
+				
+				// Check if any tags on this post are blacklisted in the settings
+				if (config.blacklisted_tags && config.blacklisted_tags.length > 0 && post.json_metadata && post.json_metadata != '') {
+					var tags = JSON.parse(post.json_metadata).tags;
 
-      // Check if the bot already voted on this post
-      if(post.active_votes.find(v => v.voter == account.name)) {
-        utils.log('Bot already voted on: ' + post.url);
-        last_voted++;
-        return;
-      }
+					if(tags && tags.length > 0 && tags.find(t => config.blacklisted_tags.indexOf(t) >= 0)) {
+						utils.log('Post contains one or more blacklisted tags.');
+						continue;
+					}
+				}
+				
+				// Check if this post has been flagged by any flag signal accounts
+				if(config.flag_signal_accounts) {
+					if(result.active_votes.find(function(v) { return v.percent < 0 && config.flag_signal_accounts.indexOf(v.voter) >= 0; })) {
+						utils.log('Post was downvoted by a flag signal account.');
+						continue;
+					}
+				}
 
-      sendVote(post, 0);
+				sendVote(post, 0);
+				last_voted++;
+				break;
+			}
     } else
       console.log(err, result);
   });
@@ -167,7 +187,6 @@ function sendVote(post, retries) {
   steem.broadcast.vote(config.posting_key, account.name, post.author, post.permlink, config.vote_weight, function (err, result) {
     if (!err && result) {
       utils.log(utils.format(config.vote_weight / 100) + '% vote cast for: ' + post.url);
-      last_voted++;
 			
 			if(config.comment_location)
 				sendComment(post.author, post.permlink);
